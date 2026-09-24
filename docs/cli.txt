@@ -1,0 +1,37 @@
+$ claude-time
+Project            Today  This week  This month     Total   Last activity
+─────────────────────────────────────────────────────────────────────────────
+payments-api      2h 02m     9h 46m     57h 04m   72h 56m   24.09.2026, 14:27
+ios-app              43m     1h 32m     11h 20m   13h 08m   24.09.2026, 14:23
+data-pipeline          –     1h 51m     24h 58m   28h 19m   21.09.2026, 15:43
+notes                  –          –      3h 37m    3h 37m   19.09.2026, 12:14
+infra                  –          –      5h 18m    9h 17m   10.09.2026, 12:17
+marketing-site         –          –      1h 25m    3h 02m   5.09.2026, 11:28
+─────────────────────────────────────────────────────────────────────────────
+ALL (merged)      2h 33m    12h 57m    100h 36m  126h 41m
+
+idle threshold 15m · 6 projects · 122 files scanned, 0 from cache · 0.06s
+
+$ claude-time payments-api
+payments-api  (~/code/payments-api)
+  First: 26.08.2026, 08:43   Last: 24.09.2026, 14:27
+  Sessions: 48   Prompts: 604   Work blocks: 78
+  Today 2h 02m · This week 9h 46m · This month 57h 04m · Total 72h 56m
+
+  Last 14 days:
+  Fri, Sep 11   7h 54m  ██████████████████████████████
+  Sat, Sep 12        –
+  Sun, Sep 13        –
+  Mon, Sep 14   6h 48m  ██████████████████████████
+  Tue, Sep 15   7h 31m  █████████████████████████████
+  Wed, Sep 16   5h 40m  ██████████████████████
+  Thu, Sep 17        –
+  Fri, Sep 18   2h 50m  ███████████
+  Sat, Sep 19        –
+  Sun, Sep 20        –
+  Mon, Sep 21   2h 42m  ██████████
+  Tue, Sep 22   5h 00m  ███████████████████
+  Wed, Sep 23        –
+  Thu, Sep 24   2h 02m  ████████
+
+idle threshold 15m

@@ -1,0 +1,14 @@
+# SwiftPM / Xcode
+.build/
+.swiftpm/
+*.xcodeproj
+xcuserdata/
+
+# App bundles and release zips (Scripts/make-app.sh, Scripts/make-release.sh)
+build/
+dist/
+
+# Generated demo transcripts, if you point Scripts/make-demo-data.sh at the repo
+demo-data/
+
+.DS_Store

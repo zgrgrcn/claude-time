@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- CFBundleShortVersionString and CFBundleVersion are added at build time from
+     Sources/ClaudeTimeCore/Version.swift by Scripts/make-app.sh and Scripts/make-release.sh. -->
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleExecutable</key><string>ClaudeTime</string>
+    <key>CFBundleIdentifier</key><string>com.zgrgrcn.claude-time</string>
+    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+    <key>CFBundleName</key><string>ClaudeTime</string>
+    <key>CFBundleDisplayName</key><string>Claude Time</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSUIElement</key><true/>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSHumanReadableCopyright</key><string>© 2026 Ozgur Gurcan</string>
+</dict>
+</plist>
