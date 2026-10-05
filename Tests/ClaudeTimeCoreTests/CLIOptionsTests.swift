@@ -49,6 +49,8 @@ final class CLIOptionsTests: XCTestCase {
         }
         XCTAssertEqual(failure(["--root"])?.message, "--root expects a directory")
         XCTAssertEqual(failure(["--root", ""])?.message, "--root expects a directory")
+        XCTAssertEqual(failure(["--export"])?.message, "--export expects a directory")
+        XCTAssertEqual(try CLIOptions.parse(["--export", "~/sync"]).export, "~/sync")
         XCTAssertEqual(failure(["--bogus"]), CLIOptions.ParseError(message: "unknown option: --bogus", showUsage: true))
         XCTAssertEqual(failure(["--idle"])?.showUsage, false)
     }

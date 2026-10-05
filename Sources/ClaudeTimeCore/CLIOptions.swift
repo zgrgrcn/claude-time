@@ -13,6 +13,8 @@ public struct CLIOptions: Equatable, Sendable {
     public var useCache = true
     /// `--root` value as typed; resolve with `TranscriptStore.resolveRoot(_:)`.
     public var root: String?
+    /// `--export` destination: write a usage-only copy of the transcripts there instead of a report.
+    public var export: String?
     /// Case-insensitive substring of a project's name or path.
     public var filter: String?
 
@@ -57,6 +59,11 @@ public struct CLIOptions: Equatable, Sendable {
                     throw ParseError(message: "--root expects a directory", showUsage: false)
                 }
                 o.root = v
+            case "--export":
+                guard let v = it.next(), !v.isEmpty else {
+                    throw ParseError(message: "--export expects a directory", showUsage: false)
+                }
+                o.export = v
             default:
                 if a.hasPrefix("-") { throw ParseError(message: "unknown option: \(a)", showUsage: true) }
                 o.filter = a

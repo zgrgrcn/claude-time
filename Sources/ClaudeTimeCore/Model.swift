@@ -21,11 +21,12 @@ public struct ScannedFile: Codable, Sendable, Equatable {
     }
 }
 
-/// All transcripts of one Claude Code project (one directory under `~/.claude/projects`).
+/// All transcripts of one Claude Code project: every directory under `~/.claude/projects`
+/// whose working directory has the same name (after renaming, see `TranscriptStore.scan(names:)`).
 public struct Project: Identifiable, Sendable, Equatable {
-    /// Directory name, e.g. `-Users-you-code-my-app`.
+    /// Same as `name`, which is unique after grouping.
     public var id: String
-    /// Real working directory, e.g. `/Users/you/code/my-app`.
+    /// Real working directory of the most recently active folder, e.g. `/Users/you/code/my-app`.
     public var path: String
     /// Last path component, e.g. `my-app`.
     public var name: String
@@ -34,10 +35,14 @@ public struct Project: Identifiable, Sendable, Equatable {
     public var prompts: Int
     /// Merged, sorted, de-duplicated epoch seconds across all files of the project.
     public var timestamps: [Double]
+    /// Folder names grouped into this project, before renaming; the keys of `scan(names:)`.
+    public var folderNames: [String]
 
-    public init(id: String, path: String, name: String, sessionCount: Int, fileCount: Int, prompts: Int, timestamps: [Double]) {
+    public init(id: String, path: String, name: String, sessionCount: Int, fileCount: Int, prompts: Int,
+                timestamps: [Double], folderNames: [String] = []) {
         self.id = id; self.path = path; self.name = name; self.sessionCount = sessionCount
         self.fileCount = fileCount; self.prompts = prompts; self.timestamps = timestamps
+        self.folderNames = folderNames
     }
 
     public var firstSeen: Date? { timestamps.first.map { Date(timeIntervalSince1970: $0) } }

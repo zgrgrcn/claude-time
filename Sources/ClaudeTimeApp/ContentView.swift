@@ -27,13 +27,18 @@ struct ContentView: View {
     /// The project list scrolls beyond this height. Snapshots raise it to show every row.
     var listMaxHeight: CGFloat = L.listMaxH
     @State private var listHeight: CGFloat = 0
+    @State private var showSettings = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
-            thresholdRow
-            SummaryTiles(stats: model.allStats)
-            projectSection
+            if showSettings {
+                ProjectNames()
+            } else {
+                thresholdRow
+                SummaryTiles(stats: model.allStats)
+                projectSection
+            }
             footer
         }
         .padding(14)
@@ -52,6 +57,14 @@ struct ContentView: View {
                 Text("Time spent in Claude Code").font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            Button {
+                showSettings.toggle()
+                if !showSettings { model.refresh() }  // apply renamed projects
+            } label: {
+                Image(systemName: showSettings ? "checkmark" : "gearshape")
+            }
+            .controlSize(.small)
+            .help(showSettings ? "Done" : "Settings")
             Button {
                 model.refresh()
             } label: {
@@ -153,6 +166,46 @@ struct ContentView: View {
                     .controlSize(.small)
             }
         }
+    }
+}
+
+// MARK: - Settings
+
+/// Renames projects. A name applies to every folder with that name, and folders given the same
+/// name count as one project.
+private struct ProjectNames: View {
+    @EnvironmentObject var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Project names").textCase(.uppercase)
+                    .font(.caption2).fontWeight(.semibold).foregroundStyle(.secondary)
+                Spacer()
+                Text("Leave empty to use the folder name")
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+            ScrollView {
+                VStack(spacing: 6) {
+                    ForEach(model.folderNames, id: \.self) { folder in
+                        HStack {
+                            Text(folder).lineLimit(1).truncationMode(.middle)
+                                .frame(width: L.nameW, alignment: .leading)
+                            TextField(folder, text: binding(folder))
+                                .textFieldStyle(.roundedBorder)
+                        }
+                    }
+                }
+                .padding(.horizontal, 8)
+            }
+            .frame(maxHeight: L.listMaxH)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func binding(_ folder: String) -> Binding<String> {
+        Binding(get: { model.names[folder] ?? "" },
+                set: { model.names[folder] = $0.isEmpty ? nil : $0 })
     }
 }
 

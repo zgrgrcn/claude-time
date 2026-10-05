@@ -35,7 +35,7 @@ struct ClaudeTimeApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            ContentView().environmentObject(model)
+            ContentView().environmentObject(model).fitsWindowHeight()
         } label: {
             Label {
                 Text(model.menuTitle)
@@ -44,6 +44,40 @@ struct ClaudeTimeApp: App {
             }
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+extension View {
+    /// The menu bar window grows with its content but doesn't always shrink back, which leaves an
+    /// empty band above the content (e.g. after collapsing a project). Keep the window as tall as
+    /// the content, with its top edge where it is.
+    func fitsWindowHeight() -> some View { modifier(FitsWindowHeight()) }
+}
+
+private struct FitsWindowHeight: ViewModifier {
+    @State private var height: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+            .background(WindowResizer(height: height))
+    }
+}
+
+private struct WindowResizer: NSViewRepresentable {
+    let height: CGFloat
+
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        let height = height
+        DispatchQueue.main.async {  // the view may not be in its window yet
+            guard height > 0, let window = view.window else { return }
+            let content = window.contentRect(forFrameRect: window.frame)
+            guard abs(content.height - height) > 0.5 else { return }
+            let fitted = NSRect(x: content.minX, y: content.maxY - height, width: content.width, height: height)
+            window.setFrame(window.frameRect(forContentRect: fitted), display: true)
+        }
     }
 }
 

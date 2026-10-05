@@ -48,16 +48,25 @@ public final class TranscriptStore: @unchecked Sendable {
         loadCache()
     }
 
-    public func scan() throws -> ScanResult {
+    /// Preferences domain of the app; the CLI reads the project names from it too.
+    public static let defaultsSuite = "com.zgrgrcn.claude-time"
+    /// Key of the `[folder name: display name]` dictionary in `defaultsSuite`.
+    public static let namesKey = "projectNames"
+
+    /// - Parameter names: display name per folder name (e.g. `["scratch-2026": "notes"]`).
+    ///   Folders renamed to the same name count as one project.
+    public func scan(names: [String: String] = [:]) throws -> ScanResult {
         lock.lock(); defer { lock.unlock() }
         let t0 = Date()
         let fm = FileManager.default
         let keys: Set<URLResourceKey> = [.fileSizeKey, .contentModificationDateKey, .isDirectoryKey]
         let dirs = try fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
 
-        var projects: [Project] = []
         var newCache: [String: ScannedFile] = [:]
         var scanned = 0, reused = 0
+        // Folders are keyed by full path, so the same project checked out at different paths (or
+        // synced from other machines) shows up as several folders. Group them by name.
+        var byName: [String: [(folder: String, cwd: String, files: [ScannedFile])]] = [:]
 
         for dir in dirs {
             guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { continue }
@@ -86,22 +95,31 @@ public final class TranscriptStore: @unchecked Sendable {
             }
             guard !files.isEmpty else { continue }
 
-            var all = files.flatMap(\.timestamps)
-            all.sort()
-            all = Self.dedupe(all)
-
             var cwdCounts: [String: Int] = [:]
             for f in files { if let c = f.cwd { cwdCounts[c, default: 0] += 1 } }
             let cwd = cwdCounts.max { a, b in a.value < b.value }?.key ?? Self.guessPath(fromDirName: id)
-            let home = fm.homeDirectoryForCurrentUser.path
-            var name = (cwd as NSString).lastPathComponent
-            if cwd == home { name = "~" } else if name.isEmpty { name = cwd }
+            let folder = Self.projectName(cwd)
+            let name = names[folder].map { $0.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty ? nil : $0 } ?? folder
+            byName[name, default: []].append((folder, cwd, files))
+        }
+
+        var projects: [Project] = []
+        for (name, folders) in byName {
+            let files = folders.flatMap(\.files)
+            var all = files.flatMap(\.timestamps)
+            all.sort()
+            all = Self.dedupe(all)
+            // Show the path of the most recently active folder.
+            let latest = folders.max { a, b in
+                (a.files.compactMap(\.timestamps.last).max() ?? 0) < (b.files.compactMap(\.timestamps.last).max() ?? 0)
+            }!
             projects.append(Project(
-                id: id, path: cwd, name: name,
+                id: name, path: latest.cwd, name: name,
                 sessionCount: files.filter(\.isTopLevel).count,
                 fileCount: files.count,
                 prompts: files.reduce(0) { $0 + $1.prompts },
-                timestamps: all))
+                timestamps: all,
+                folderNames: Array(Set(folders.map(\.folder))).sorted()))
         }
 
         cache = newCache
@@ -218,6 +236,14 @@ public final class TranscriptStore: @unchecked Sendable {
         var last = -Double.infinity
         for t in sorted where t != last { out.append(t); last = t }
         return out
+    }
+
+    /// Display name of a working directory: its last component, or `~` for a home folder
+    /// (any `/Users/<name>`, so home folders synced from other machines merge too).
+    static func projectName(_ cwd: String) -> String {
+        let parts = cwd.split(separator: "/")
+        if parts.count == 2, parts[0] == "Users" { return "~" }
+        return parts.last.map(String.init) ?? cwd
     }
 
     /// Fallback when no `cwd` record exists: `-Users-x-github-foo` → `/Users/x/github/foo`.

@@ -48,7 +48,7 @@ What this means in practice:
 - **All projects** (the menu bar, the four summary cards and the CLI's `ALL (merged)` row) merges every project into one timeline the same way. An hour with two projects open in parallel counts once there, but once in each project's row, so the total can be less than the sum of the rows.
 - The clock stops at the last entry of a stretch, so reading Claude's final answer isn't counted.
 - Today starts at local midnight, This week on Monday and This month on the 1st. Total covers every transcript still on disk (see [why it may stop at about 30 days](#why-does-my-history-stop-after-about-30-days)).
-- A project is the folder you started Claude Code in, and it's named after that folder. Projects with less than a minute of activity are hidden.
+- A project is the folder you started Claude Code in, and it's named after that folder; rename it under the gear button, and the CLI shows that name too. Folders with the same name count as one project, so a project checked out at different paths (or on different Macs, see [`--export`](#cli-usage)) shows up once. Projects with less than a minute of activity are hidden.
 
 In the project details:
 
@@ -61,7 +61,7 @@ In the project details:
 - **100% local.** The app and the CLI make no network requests: no analytics, no telemetry, no update checks.
 - **Reads only what it needs.** Claude Time reads `~/.claude/projects/**/*.jsonl` (or a folder you point it at). Instead of parsing the JSON, it searches each file for three markers and keeps only the timestamps, the working directory (`cwd`) and the number of plain-text user messages. The text of your prompts, Claude's replies, code and tool output are never stored or shown.
 - **Never modifies transcripts.** It doesn't change or delete anything under `~/.claude`.
-- **What it writes:** a cache in `~/Library/Caches/claude-time/` holding each file's size, modification time, working directory, timestamps and message count. The default folder uses `cache.json`, and any other folder gets its own `cache-<hash>.json`. You can delete them at any time; they're rebuilt on the next scan. The app also saves the idle threshold in its preferences (`com.zgrgrcn.claude-time`) and registers a login item only if you turn on Launch at login.
+- **What it writes:** a cache in `~/Library/Caches/claude-time/` holding each file's size, modification time, working directory, timestamps and message count. The default folder uses `cache.json`, and any other folder gets its own `cache-<hash>.json`. You can delete them at any time; they're rebuilt on the next scan. The app also saves the idle threshold and your project names in its preferences (`com.zgrgrcn.claude-time`) and registers a login item only if you turn on Launch at login.
 
 ## Performance
 
@@ -125,8 +125,11 @@ claude-time --json > time.json     # everything as JSON
 claude-time --root ~/other/projects             # read a different transcripts folder
 CLAUDE_TIME_ROOT=~/other/projects claude-time   # same, through the environment
 claude-time --no-cache             # rescan every file, without reading or writing the cache
+claude-time --export ~/Library/Mobile\ Documents/com~apple~CloudDocs/claude-time   # usage-only copy, see below
 claude-time --help
 ```
+
+`--export <dir>` writes a copy of every transcript that holds only what Claude Time reads: the working directory, the timestamps and one empty marker per prompt. Prompt text, replies, code and tool output aren't copied. Run it on each Mac into a synced folder such as iCloud Drive, then read all of them together with `--root <dir>`. Unchanged files are skipped and nothing is ever deleted from `<dir>`, so it also keeps history Claude Code has since cleaned up.
 
 With [demo data](#development) it looks like this. Dates and times follow your region settings.
 

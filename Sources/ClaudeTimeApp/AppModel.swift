@@ -15,6 +15,11 @@ final class AppModel: ObservableObject {
         didSet { settings?.set(idleMinutes, forKey: "idleMinutes") }
     }
 
+    /// Display name per folder name, edited in the settings view.
+    @Published var names: [String: String] {
+        didSet { settings?.set(names, forKey: TranscriptStore.namesKey) }
+    }
+
     static let idleOptions: [Double] = [5, 10, 15, 30, 60, 120, 240]
     let detailDays = 14
     /// Transcripts folder being scanned.
@@ -36,6 +41,7 @@ final class AppModel: ObservableObject {
         self.settings = settings
         let saved = settings?.double(forKey: "idleMinutes") ?? 0
         idleMinutes = saved > 0 ? saved : 15
+        names = settings?.dictionary(forKey: TranscriptStore.namesKey) as? [String: String] ?? [:]
         launchAtLogin = SMAppService.mainApp.status == .enabled
         guard autoRefresh else { return }
         refresh()
@@ -67,9 +73,9 @@ final class AppModel: ObservableObject {
     func refresh() {
         guard !isScanning else { return }
         isScanning = true
-        let store = self.store
+        let store = self.store, names = self.names
         Task.detached(priority: .utility) {
-            let outcome = Result { try store.scan() }
+            let outcome = Result { try store.scan(names: names) }
             await MainActor.run {
                 switch outcome {
                 case .success(let r):
@@ -85,6 +91,9 @@ final class AppModel: ObservableObject {
             }
         }
     }
+
+    /// Folder names of the listed projects, for the settings view.
+    var folderNames: [String] { sortedProjects.flatMap(\.folderNames) }
 
     func setLaunchAtLogin(_ on: Bool) {
         do {

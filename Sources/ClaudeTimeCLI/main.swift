@@ -13,6 +13,8 @@ OPTIONS
   --idle <minutes>  idle threshold; silences longer than this don't count as work (default 15)
   --days <n>        days to show in the daily breakdown (default 14)
   --root <dir>      transcripts folder to read (default ~/.claude/projects)
+  --export <dir>    copy only usage data (cwd, timestamps, prompt count) of every transcript to <dir>,
+                    e.g. iCloud Drive; then read all your Macs with --root <dir>
   --no-cache        don't read or write the scan cache; rescan every file
   -v, --version     print the version
   -h, --help        show this help
@@ -49,9 +51,22 @@ guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirector
     exit(1)
 }
 
+if let export = options.export {
+    let destination = TranscriptStore.resolveRoot(export)
+    do {
+        let r = try Exporter.export(from: root, to: destination)
+        print("exported \(Format.count(r.written, "file")) to \(destination.path), \(r.unchanged) unchanged")
+        exit(0)
+    } catch {
+        fputs("claude-time: export failed: \(error.localizedDescription)\n", stderr); exit(1)
+    }
+}
+
 let store = TranscriptStore(root: root, useCache: options.useCache)
 let result: ScanResult
-do { result = try store.scan() } catch {
+let names = UserDefaults(suiteName: TranscriptStore.defaultsSuite)?
+    .dictionary(forKey: TranscriptStore.namesKey) as? [String: String] ?? [:]  // renamed in the app
+do { result = try store.scan(names: names) } catch {
     fputs("claude-time: scan failed: \(error.localizedDescription)\n", stderr); exit(1)
 }
 let idleMinutes = options.idleMinutes

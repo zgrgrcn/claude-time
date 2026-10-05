@@ -84,7 +84,7 @@ final class TranscriptStoreTests: XCTestCase {
         XCTAssertEqual(r.scannedFiles, 4)
         XCTAssertEqual(r.reusedFiles, 0)
 
-        let a = try XCTUnwrap(r.projects.first { $0.id == "-Users-you-code-app-a" })
+        let a = try XCTUnwrap(r.projects.first { $0.id == "app-a" })
         XCTAssertEqual(a.name, "app-a")
         XCTAssertEqual(a.path, cwd)
         XCTAssertEqual(a.sessionCount, 2)   // top-level files only
@@ -94,9 +94,63 @@ final class TranscriptStoreTests: XCTestCase {
         XCTAssertEqual(a.timestamps.map { iso.string(from: Date(timeIntervalSince1970: $0)) },
                        ["2026-09-24T09:00:00Z", "2026-09-24T09:02:00Z", "2026-09-24T09:05:00Z", "2026-09-24T09:07:00Z"])
 
-        let b = try XCTUnwrap(r.projects.first { $0.id == "-Users-you-code-app-b" })
+        let b = try XCTUnwrap(r.projects.first { $0.id == "b" })
         XCTAssertEqual(b.path, "/Users/you/code/app/b")  // guessed from the folder name
         XCTAssertEqual(b.prompts, 0)
+    }
+
+    func testFoldersWithTheSameNameMerge() throws {
+        // Same project on two Macs (different user names) plus each home folder.
+        try write("-Users-a-code-app/s1.jsonl", [line("2026-09-24T09:00:00Z", cwd: "/Users/a/code/app", prompt: "x")])
+        try write("-Users-b-src-app/s2.jsonl", [line("2026-09-24T09:05:00Z", cwd: "/Users/b/src/app", prompt: "y")])
+        try write("-Users-a/s3.jsonl", [line("2026-09-24T10:00:00Z", cwd: "/Users/a")])
+        try write("-Users-b/s4.jsonl", [line("2026-09-24T10:05:00Z", cwd: "/Users/b")])
+
+        let r = try TranscriptStore(root: tmp, useCache: false).scan()
+        XCTAssertEqual(r.projects.map(\.name).sorted(), ["app", "~"])
+        let app = try XCTUnwrap(r.projects.first { $0.name == "app" })
+        XCTAssertEqual(app.path, "/Users/b/src/app")  // most recently active
+        XCTAssertEqual(app.sessionCount, 2)
+        XCTAssertEqual(app.prompts, 2)
+        XCTAssertEqual(app.timestamps.count, 2)
+    }
+
+    func testRenamedFoldersShowTheNewNameAndMerge() throws {
+        try write("-x-one/s1.jsonl", [line("2026-09-24T09:00:00Z", cwd: "/x/one")])
+        try write("-x-two/s2.jsonl", [line("2026-09-24T09:05:00Z", cwd: "/x/two")])
+        try write("-x-three/s3.jsonl", [line("2026-09-24T09:10:00Z", cwd: "/x/three")])
+
+        let r = try TranscriptStore(root: tmp, useCache: false)
+            .scan(names: ["one": "work", "two": " work ", "three": "  "])
+        XCTAssertEqual(r.projects.map(\.name).sorted(), ["three", "work"])
+        let work = try XCTUnwrap(r.projects.first { $0.name == "work" })
+        XCTAssertEqual(work.folderNames, ["one", "two"])
+        XCTAssertEqual(work.timestamps.count, 2)
+    }
+
+    func testExportKeepsUsageOnlyAndScansTheSame() throws {
+        let src = tmp.appendingPathComponent("src"), dst = tmp.appendingPathComponent("dst")
+        let cwd = "/Users/you/code/app"
+        try write("src/-Users-you-code-app/s1.jsonl", [
+            line("2026-09-24T09:00:00.123Z", cwd: cwd, prompt: "secret prompt"),
+            line("2026-09-24T09:05:00.000Z", cwd: cwd),
+        ])
+        try write("src/-Users-you-code-app/s1/subagents/agent-1.jsonl", [line("2026-09-24T09:02:00Z", cwd: cwd, prompt: "task")])
+        try write("src/-Users-you-code-app/memory/m.jsonl", [line("2026-09-24T12:00:00Z", cwd: cwd)])
+
+        XCTAssertEqual(try Exporter.export(from: src, to: dst).written, 2)
+        let copy = try String(contentsOf: dst.appendingPathComponent("-Users-you-code-app/s1.jsonl"), encoding: .utf8)
+        XCTAssertFalse(copy.contains("secret"))
+        XCTAssertFalse(copy.contains("ok"))  // assistant text
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dst.appendingPathComponent("-Users-you-code-app/memory").path))
+
+        let a = try TranscriptStore(root: src, useCache: false).scan().projects
+        let b = try TranscriptStore(root: dst, useCache: false).scan().projects
+        XCTAssertEqual(a, b)
+
+        let again = try Exporter.export(from: src, to: dst)
+        XCTAssertEqual(again.written, 0)
+        XCTAssertEqual(again.unchanged, 2)
     }
 
     func testCacheReusesUnchangedFilesAndCacheFreeModeWritesNothing() throws {
