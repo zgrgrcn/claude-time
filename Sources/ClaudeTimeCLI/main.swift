@@ -41,7 +41,8 @@ case .version: print("claude-time \(ClaudeTime.version)"); exit(0)
 case .report: break
 }
 
-let root = TranscriptStore.resolveRoot(options.root)
+var root = TranscriptStore.resolveRoot(options.root)
+let defaults = UserDefaults(suiteName: TranscriptStore.defaultsSuite)
 var isDirectory: ObjCBool = false
 guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory), isDirectory.boolValue else {
     fputs("claude-time: no transcripts folder at \(root.path)\n", stderr)
@@ -62,9 +63,19 @@ if let export = options.export {
     }
 }
 
+// Like the app: with a sync folder set (and no other folder asked for), add this Mac's usage to
+// it and read every Mac's usage from it.
+if root == TranscriptStore.defaultRoot, let sync = defaults?.string(forKey: Exporter.syncFolderKey) {
+    let syncURL = URL(fileURLWithPath: sync)
+    do { _ = try Exporter.export(from: root, to: syncURL) } catch {
+        fputs("claude-time: couldn't update the sync folder: \(error.localizedDescription)\n", stderr)
+    }
+    root = syncURL
+}
+
 let store = TranscriptStore(root: root, useCache: options.useCache)
 let result: ScanResult
-let names = UserDefaults(suiteName: TranscriptStore.defaultsSuite)?
+let names = defaults?
     .dictionary(forKey: TranscriptStore.namesKey) as? [String: String] ?? [:]  // renamed in the app
 do { result = try store.scan(names: names) } catch {
     fputs("claude-time: scan failed: \(error.localizedDescription)\n", stderr); exit(1)
@@ -74,6 +85,7 @@ let days = options.days
 let idle = idleMinutes * 60
 let windows = TimeWindows()
 let projects = result.projects
+    .filter { !$0.isProjectless }  // home folder, scratch workspaces, hidden folders
     .filter { Activity.stats($0.timestamps, idle: idle, windows: windows).total >= 60 }   // hide projects under a minute
     .sorted { ($0.timestamps.last ?? 0) > ($1.timestamps.last ?? 0) }
 
@@ -164,6 +176,12 @@ if options.filter == nil {
         print("  First: \(Format.dateTime(s.firstSeen))   Last: \(Format.dateTime(s.lastSeen))")
         print("  Sessions: \(p.sessionCount)   Prompts: \(p.prompts)   Work blocks: \(s.blocks)")
         print("  Today \(d(s.today)) · This week \(d(s.week)) · This month \(d(s.month)) · Total \(d(s.total))")
+        if p.machines.count > 1 {
+            print("  Macs: " + p.machines.keys.sorted().map { mac in
+                let m = Activity.stats(p.machines[mac]!, idle: idle, windows: windows)
+                return "\(mac) \(d(m.total)) (today \(d(m.today)))"
+            }.joined(separator: " · "))
+        }
         let daily = Activity.daily(p.timestamps, idle: idle, days: days)
         let maxS = daily.map(\.seconds).max() ?? 0
         let dayW = (daily.map { Format.dayLabel($0.day).count }.max() ?? 0) + 1

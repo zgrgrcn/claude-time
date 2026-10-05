@@ -33,6 +33,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 12) {
             header
             if showSettings {
+                SyncFolder()
                 ProjectNames()
             } else {
                 thresholdRow
@@ -170,6 +171,48 @@ struct ContentView: View {
 }
 
 // MARK: - Settings
+
+/// Picks the folder shared between Macs. Every Mac writes its usage there and reads all of it.
+private struct SyncFolder: View {
+    @EnvironmentObject var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Sync between Macs").textCase(.uppercase)
+                    .font(.caption2).fontWeight(.semibold).foregroundStyle(.secondary)
+                Spacer()
+                Text("Only times and folder paths are shared, never prompts or code")
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+            HStack {
+                Text(model.syncFolder.map { ProjectRow.shortPath($0.path) } ?? "Off: this Mac only")
+                    .lineLimit(1).truncationMode(.middle)
+                    .foregroundStyle(model.syncFolder == nil ? .secondary : .primary)
+                    .help(model.syncFolder?.path ?? "")
+                Spacer()
+                Button("Choose Folder…", action: choose).controlSize(.small)
+                if model.syncFolder != nil {
+                    Button("Turn Off") { model.syncFolder = nil }.controlSize(.small)
+                }
+            }
+            .padding(.horizontal, 8)
+        }
+    }
+
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Use for Sync"
+        panel.message = "Pick the same folder on every Mac, e.g. a \"Claude Time\" folder in iCloud Drive."
+        panel.directoryURL = model.syncFolder ?? FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
+        NSApp.activate()  // menu bar apps don't come to the front on their own
+        if panel.runModal() == .OK, let url = panel.url { model.syncFolder = url }
+    }
+}
 
 /// Renames projects. A name applies to every folder with that name, and folders given the same
 /// name count as one project.
@@ -320,6 +363,13 @@ private struct ProjectDetail: View {
                 meta("text.bubble", "Prompts", "\(project.prompts)")
                 meta("rectangle.split.3x1", "Work blocks", "\(stats.blocks)")
             }
+            if project.machines.count > 1 {
+                HStack(spacing: 14) {
+                    ForEach(project.machines.keys.sorted(), id: \.self) { mac in
+                        meta("desktopcomputer", mac, machineTotal(mac))
+                    }
+                }
+            }
 
             Text("Last \(Format.count(daily.count, "day"))").textCase(.uppercase)
                 .font(.caption2).fontWeight(.semibold).foregroundStyle(.secondary)
@@ -360,6 +410,13 @@ private struct ProjectDetail: View {
         .overlay(RoundedRectangle(cornerRadius: L.corner).strokeBorder(Color.primary.opacity(0.06)))
         .padding(.horizontal, 4).padding(.bottom, 4)
         .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    @EnvironmentObject private var model: AppModel
+
+    private func machineTotal(_ mac: String) -> String {
+        let s = Activity.stats(project.machines[mac] ?? [], idle: model.idle, windows: model.windows)
+        return "\(Format.duration(s.total, zero: "0m")) (today \(Format.duration(s.today, zero: "0m")))"
     }
 
     private func meta(_ icon: String, _ label: String, _ value: String) -> some View {

@@ -66,7 +66,7 @@ public final class TranscriptStore: @unchecked Sendable {
         var scanned = 0, reused = 0
         // Folders are keyed by full path, so the same project checked out at different paths (or
         // synced from other machines) shows up as several folders. Group them by name.
-        var byName: [String: [(folder: String, cwd: String, files: [ScannedFile])]] = [:]
+        var byName: [String: [(folder: String, cwd: String, files: [ScannedFile], renamed: Bool)]] = [:]
 
         for dir in dirs {
             guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { continue }
@@ -99,8 +99,8 @@ public final class TranscriptStore: @unchecked Sendable {
             for f in files { if let c = f.cwd { cwdCounts[c, default: 0] += 1 } }
             let cwd = cwdCounts.max { a, b in a.value < b.value }?.key ?? Self.guessPath(fromDirName: id)
             let folder = Self.projectName(cwd)
-            let name = names[folder].map { $0.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty ? nil : $0 } ?? folder
-            byName[name, default: []].append((folder, cwd, files))
+            let renamed = names[folder].map { $0.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty ? nil : $0 }
+            byName[renamed ?? folder, default: []].append((folder, cwd, files, renamed != nil))
         }
 
         var projects: [Project] = []
@@ -113,13 +113,17 @@ public final class TranscriptStore: @unchecked Sendable {
             let latest = folders.max { a, b in
                 (a.files.compactMap(\.timestamps.last).max() ?? 0) < (b.files.compactMap(\.timestamps.last).max() ?? 0)
             }!
+            var machines: [String: [Double]] = [:]
+            for f in folders { machines[Self.machineName(f.cwd), default: []] += f.files.flatMap(\.timestamps) }
             projects.append(Project(
                 id: name, path: latest.cwd, name: name,
                 sessionCount: files.filter(\.isTopLevel).count,
                 fileCount: files.count,
                 prompts: files.reduce(0) { $0 + $1.prompts },
                 timestamps: all,
-                folderNames: Array(Set(folders.map(\.folder))).sorted()))
+                folderNames: Array(Set(folders.map(\.folder))).sorted(),
+                machines: machines.mapValues { Self.dedupe($0.sorted()) },
+                isProjectless: folders.allSatisfy { !$0.renamed && Self.isProjectless($0.cwd) }))
         }
 
         cache = newCache
@@ -244,6 +248,20 @@ public final class TranscriptStore: @unchecked Sendable {
         let parts = cwd.split(separator: "/")
         if parts.count == 2, parts[0] == "Users" { return "~" }
         return parts.last.map(String.init) ?? cwd
+    }
+
+    /// The Mac a working directory belongs to: the user name in `/Users/<name>/…`.
+    // ponytail: two Macs with the same user name count as one; write a host marker on export if that matters.
+    static func machineName(_ cwd: String) -> String {
+        let parts = cwd.split(separator: "/")
+        return parts.count >= 2 && parts[0] == "Users" ? String(parts[1]) : "?"
+    }
+
+    /// Home folder, Claude's scratch workspaces and anything inside a hidden folder.
+    static func isProjectless(_ cwd: String) -> Bool {
+        let parts = cwd.split(separator: "/")
+        if parts.count == 2, parts[0] == "Users" { return true }
+        return cwd.contains("/scratch-workspaces/") || parts.contains { $0.hasPrefix(".") }
     }
 
     /// Fallback when no `cwd` record exists: `-Users-x-github-foo` → `/Users/x/github/foo`.

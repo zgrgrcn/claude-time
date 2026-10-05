@@ -5,6 +5,10 @@ import Foundation
 /// scanner reads: the working directory, the timestamps and one marker per prompt. Prompt text,
 /// replies, code and tool output are dropped.
 public enum Exporter {
+    /// Key of the sync folder in `TranscriptStore.defaultsSuite`. When set, the app and the CLI
+    /// export this Mac's usage into it and read every Mac's usage from it.
+    public static let syncFolderKey = "syncFolder"
+
     /// Returns how many files were written and how many were already up to date. Files are never
     /// deleted from `destination`, so it keeps history Claude Code has since cleaned up.
     public static func export(from root: URL, to destination: URL) throws -> (written: Int, unchanged: Int) {

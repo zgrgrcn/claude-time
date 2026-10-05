@@ -37,12 +37,19 @@ public struct Project: Identifiable, Sendable, Equatable {
     public var timestamps: [Double]
     /// Folder names grouped into this project, before renaming; the keys of `scan(names:)`.
     public var folderNames: [String]
+    /// Timestamps per Mac, keyed by the user name in the working directory (`/Users/<name>/…`).
+    /// More than one entry only when reading a sync folder.
+    public var machines: [String: [Double]]
+    /// Sessions started outside a project (home folder, Claude's scratch workspaces, hidden
+    /// folders) that haven't been renamed. Hidden from the lists and totals.
+    public var isProjectless: Bool
 
     public init(id: String, path: String, name: String, sessionCount: Int, fileCount: Int, prompts: Int,
-                timestamps: [Double], folderNames: [String] = []) {
+                timestamps: [Double], folderNames: [String] = [], machines: [String: [Double]] = [:],
+                isProjectless: Bool = false) {
         self.id = id; self.path = path; self.name = name; self.sessionCount = sessionCount
         self.fileCount = fileCount; self.prompts = prompts; self.timestamps = timestamps
-        self.folderNames = folderNames
+        self.folderNames = folderNames; self.machines = machines; self.isProjectless = isProjectless
     }
 
     public var firstSeen: Date? { timestamps.first.map { Date(timeIntervalSince1970: $0) } }

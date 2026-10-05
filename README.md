@@ -48,7 +48,7 @@ What this means in practice:
 - **All projects** (the menu bar, the four summary cards and the CLI's `ALL (merged)` row) merges every project into one timeline the same way. An hour with two projects open in parallel counts once there, but once in each project's row, so the total can be less than the sum of the rows.
 - The clock stops at the last entry of a stretch, so reading Claude's final answer isn't counted.
 - Today starts at local midnight, This week on Monday and This month on the 1st. Total covers every transcript still on disk (see [why it may stop at about 30 days](#why-does-my-history-stop-after-about-30-days)).
-- A project is the folder you started Claude Code in, and it's named after that folder; rename it under the gear button, and the CLI shows that name too. Folders with the same name count as one project, so a project checked out at different paths (or on different Macs, see [`--export`](#cli-usage)) shows up once. Projects with less than a minute of activity are hidden.
+- A project is the folder you started Claude Code in, and it's named after that folder; rename it under the gear button, and the CLI shows that name too. Folders with the same name count as one project, so a project checked out at different paths (or on different Macs, see [`--export`](#cli-usage)) shows up once. Projects with less than a minute of activity are hidden, and so are sessions started outside a project (your home folder, Claude's scratch workspaces, hidden folders) unless you give them a name.
 
 In the project details:
 
@@ -128,6 +128,8 @@ claude-time --no-cache             # rescan every file, without reading or writi
 claude-time --export ~/Library/Mobile\ Documents/com~apple~CloudDocs/claude-time   # usage-only copy, see below
 claude-time --help
 ```
+
+To track several Macs, open the gear button, click **Choose Folder…** under *Sync between Macs* and pick the same folder on every Mac, for example a `Claude Time` folder in iCloud Drive. On every refresh, the app then exports this Mac's usage into that folder (see `--export` below) and reads every Mac's usage from it. The CLI does the same when it reads the default folder. A project's details then show the time per Mac, told apart by the user name in its path (`/Users/<name>`), so two Macs with the same user name count as one. Project names are kept per Mac.
 
 `--export <dir>` writes a copy of every transcript that holds only what Claude Time reads: the working directory, the timestamps and one empty marker per prompt. Prompt text, replies, code and tool output aren't copied. Run it on each Mac into a synced folder such as iCloud Drive, then read all of them together with `--root <dir>`. Unchanged files are skipped and nothing is ever deleted from `<dir>`, so it also keeps history Claude Code has since cleaned up.
 

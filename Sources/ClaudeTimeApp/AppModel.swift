@@ -22,12 +22,26 @@ final class AppModel: ObservableObject {
 
     static let idleOptions: [Double] = [5, 10, 15, 30, 60, 120, 240]
     let detailDays = 14
+    /// This Mac's transcripts folder.
+    let localRoot: URL
+    /// Folder shared between Macs (e.g. in iCloud Drive). When set, this Mac's usage is exported
+    /// into it on every refresh, and the projects are read from it.
+    @Published var syncFolder: URL? {
+        didSet {
+            settings?.set(syncFolder?.path, forKey: Exporter.syncFolderKey)
+            store = TranscriptStore(root: root, useCache: useCache)
+            refresh()
+        }
+    }
     /// Transcripts folder being scanned.
-    let root: URL
+    var root: URL { syncFolder ?? localRoot }
 
-    private let store: TranscriptStore
+    private var store: TranscriptStore
+    private let useCache: Bool
     private let settings: UserDefaults?
     private var timer: Timer?
+    /// A refresh was asked for during a scan; run it when the scan ends (settings may have changed).
+    private var pendingRefresh = false
 
     /// - Parameters:
     ///   - root: transcripts folder; defaults to `$CLAUDE_TIME_ROOT` or `~/.claude/projects`.
@@ -36,9 +50,12 @@ final class AppModel: ObservableObject {
     ///   - autoRefresh: scan right away and then every minute.
     init(root: URL = TranscriptStore.resolveRoot(), useCache: Bool = true,
          settings: UserDefaults? = .standard, autoRefresh: Bool = true) {
-        self.root = root
-        self.store = TranscriptStore(root: root, useCache: useCache)
+        self.localRoot = root
+        self.useCache = useCache
         self.settings = settings
+        let sync = settings?.string(forKey: Exporter.syncFolderKey).map { URL(fileURLWithPath: $0) }
+        _syncFolder = Published(initialValue: sync)
+        self.store = TranscriptStore(root: sync ?? root, useCache: useCache)
         let saved = settings?.double(forKey: "idleMinutes") ?? 0
         idleMinutes = saved > 0 ? saved : 15
         names = settings?.dictionary(forKey: TranscriptStore.namesKey) as? [String: String] ?? [:]
@@ -56,7 +73,7 @@ final class AppModel: ObservableObject {
     /// Projects with any measurable activity, ordered by most recent activity.
     var sortedProjects: [Project] {
         projects
-            .filter { stats($0).total >= 60 }
+            .filter { !$0.isProjectless && stats($0).total >= 60 }
             .sorted { ($0.timestamps.last ?? 0) > ($1.timestamps.last ?? 0) }
     }
 
@@ -64,18 +81,23 @@ final class AppModel: ObservableObject {
 
     func stats(_ p: Project) -> Stats { Activity.stats(p.timestamps, idle: idle, windows: windows) }
 
-    var allStats: Stats { Activity.stats(Activity.merged(projects), idle: idle, windows: windows) }
+    var allStats: Stats {
+        Activity.stats(Activity.merged(projects.filter { !$0.isProjectless }), idle: idle, windows: windows)
+    }
 
     func daily(_ p: Project) -> [DayStat] { Activity.daily(p.timestamps, idle: idle, days: detailDays) }
 
     var menuTitle: String { Format.duration(allStats.today, zero: "0m") }
 
     func refresh() {
-        guard !isScanning else { return }
+        guard !isScanning else { pendingRefresh = true; return }
         isScanning = true
-        let store = self.store, names = self.names
+        let store = self.store, names = self.names, localRoot = self.localRoot, sync = self.syncFolder
         Task.detached(priority: .utility) {
-            let outcome = Result { try store.scan(names: names) }
+            let outcome = Result {
+                if let sync { _ = try Exporter.export(from: localRoot, to: sync) }
+                return try store.scan(names: names)
+            }
             await MainActor.run {
                 switch outcome {
                 case .success(let r):
@@ -88,12 +110,19 @@ final class AppModel: ObservableObject {
                     self.errorText = e.localizedDescription
                 }
                 self.isScanning = false
+                if self.pendingRefresh { self.pendingRefresh = false; self.refresh() }
             }
         }
     }
 
-    /// Folder names of the listed projects, for the settings view.
-    var folderNames: [String] { sortedProjects.flatMap(\.folderNames) }
+    /// Folder names for the settings view: the listed projects, then the projectless sessions
+    /// (naming one lists it).
+    var folderNames: [String] {
+        let rest = projects
+            .filter { $0.isProjectless && stats($0).total >= 60 }
+            .sorted { ($0.timestamps.last ?? 0) > ($1.timestamps.last ?? 0) }
+        return (sortedProjects + rest).flatMap(\.folderNames)
+    }
 
     func setLaunchAtLogin(_ on: Bool) {
         do {

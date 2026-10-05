@@ -128,6 +128,23 @@ final class TranscriptStoreTests: XCTestCase {
         XCTAssertEqual(work.timestamps.count, 2)
     }
 
+    func testMachinesAndProjectlessSessions() throws {
+        try write("-Users-a-code-app/s1.jsonl", [line("2026-09-24T09:00:00Z", cwd: "/Users/a/code/app")])
+        try write("-Users-b-src-app/s2.jsonl", [line("2026-09-24T09:05:00Z", cwd: "/Users/b/src/app"),
+                                                line("2026-09-24T09:06:00Z", cwd: "/Users/b/src/app")])
+        try write("-Users-a/s3.jsonl", [line("2026-09-24T10:00:00Z", cwd: "/Users/a")])
+        try write("-Users-a--bot-w1/s4.jsonl", [line("2026-09-24T10:00:00Z", cwd: "/Users/a/.bot/w1")])
+        try write("-Users-a-scratch/s5.jsonl", [line("2026-09-24T10:00:00Z", cwd: "/Users/a/Library/x/scratch-workspaces/s")])
+        try write("-Users-a-tmp-scratch/s6.jsonl", [line("2026-09-24T10:00:00Z", cwd: "/Users/a/y/scratch-workspaces/kept")])
+
+        let r = try TranscriptStore(root: tmp, useCache: false).scan(names: ["kept": "named"])
+        let app = try XCTUnwrap(r.projects.first { $0.name == "app" })
+        XCTAssertEqual(app.machines.mapValues(\.count), ["a": 1, "b": 2])
+        XCTAssertFalse(app.isProjectless)
+        XCTAssertEqual(Set(r.projects.filter(\.isProjectless).map(\.name)), ["~", "w1", "s"])
+        XCTAssertFalse(try XCTUnwrap(r.projects.first { $0.name == "named" }).isProjectless)
+    }
+
     func testExportKeepsUsageOnlyAndScansTheSame() throws {
         let src = tmp.appendingPathComponent("src"), dst = tmp.appendingPathComponent("dst")
         let cwd = "/Users/you/code/app"
